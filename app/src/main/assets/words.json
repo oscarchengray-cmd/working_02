@@ -1,0 +1,21 @@
+{
+  "title": "單字王APP_範例單字卡資料",
+  "total": 3,
+  "words": [
+    {
+      "english": "kitty",
+      "chinese": "貓咪",
+      "learning": false
+    },
+    {
+      "english": "apple",
+      "chinese": "蘋果",
+      "learning": true
+    },
+    {
+      "english": "banana",
+      "chinese": "香蕉",
+      "learning": true
+    }
+  ]
+}
