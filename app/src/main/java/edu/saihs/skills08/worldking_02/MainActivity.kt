@@ -22,6 +22,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -50,7 +52,6 @@ data class Word(
 
 class WordViewModel(application: Application) : AndroidViewModel(application) {
     private val context = application.applicationContext
-    private val gson = Gson()
     private val fileName = "my_words.json"
     private val _wordsData = MutableStateFlow<Words?>(null)
     val wordsData: StateFlow<Words?> = _wordsData
@@ -63,15 +64,68 @@ class WordViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val file = File(context.filesDir, fileName)
-                val jsonString =
-                    if (file.exists()) {
-                        file.readText()
-                    } else {
-                        val defaultJson = context.assets.open("words.json").bufferedReader().use { it.readText() }
-                        saveToFile(defaultJson)
-                        defaultJson
-                    }
-                _wordsData.value = gson.fromJson(jsonString, Words::class.java)
+                val jsonString = if (file.exists()) {
+                    file.readText()
+                } else {
+                    val defaultJson = context.assets.open("words.json").bufferedReader().use { it.readText() }
+                    saveToFile(defaultJson)
+                    defaultJson
+                }
+
+                _wordsData.value = parseJsonToWords(jsonString)
+            } catch (e: Exception) {
+                println(e)
+            }
+        }
+    }
+
+    private fun parseJsonToWords(jsonString: String): Words {
+        val root = JSONObject(jsonString)
+        val wordsArray = root.getJSONArray("words")
+        val wordList = mutableListOf<Word>()
+
+        for (i in 0 until wordsArray.length()) {
+            val obj = wordsArray.getJSONObject(i)
+            wordList.add(
+                Word(
+                    english = obj.getString("english"),
+                    chinese = obj.getString("chinese"),
+                    learning = obj.getBoolean("learning")
+                )
+            )
+        }
+
+        return Words(
+            title = root.getString("title"),
+            total = root.optString("total"),
+            words = wordList
+        )
+    }
+
+    private fun wordsToJsonString(data: Words): String {
+        val root = JSONObject()
+        root.put("title", data.title)
+        root.put("total", data.total)
+
+        val wordsArray = JSONArray()
+        data.words.forEach { word ->
+            val wordObj = JSONObject()
+            wordObj.put("english", word.english)
+            wordObj.put("chinese", word.chinese)
+            wordObj.put("learning", word.learning)
+            wordsArray.put(wordObj)
+        }
+        root.put("words", wordsArray)
+
+        return root.toString()
+    }
+
+    fun updateAndSave(newWords: Words) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val jsonString = wordsToJsonString(newWords)
+                saveToFile(jsonString)
+                _wordsData.value = newWords
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -91,17 +145,7 @@ class WordViewModel(application: Application) : AndroidViewModel(application) {
         updateAndSave(newData)
     }
 
-    fun updateAndSave(newWords: Words) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val jsonString = gson.toJson(newWords)
-                saveToFile(jsonString)
-                _wordsData.value = newWords
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
+
 
     private fun saveToFile(jsonString: String) {
         context.openFileOutput(fileName, Context.MODE_PRIVATE).use {
